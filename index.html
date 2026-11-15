@@ -3349,6 +3349,7 @@ operationsPage.addEventListener("change", ({ target: field }) => {
   }
   if (field.id === "include") {
     includeProposals = field.checked;
+    tracedCables = new Set();
     if (alertTab === "alarms" && !ops.activeAlert()) alertId = "";
     render("#include");
   }
@@ -3551,6 +3552,7 @@ async function workspaceClick(event) {
   if (!button) return;
   if (button.dataset.asset) { focusAsset(button.dataset.asset, true); return; }
   const action = button.dataset.action;
+  if (!action) return;
   if (action === "close-pane") {
     if (view === "assets") { registryPreviewOpen = false; stopAssetFlash(); }
     else openMapPane(null);
@@ -3752,7 +3754,9 @@ async function workspaceChange(event) {
   render(el.id ? "#" + el.id : el.dataset.filter ? '[data-filter="' + el.dataset.filter + '"]' : undefined);
 }
 panel.addEventListener("change", workspaceChange);
-operationsPage.addEventListener("change", workspaceChange);
+operationsPage.addEventListener("change", event => {
+  if (view === "handoff") return workspaceChange(event);
+});
 
 panel.addEventListener("input", event => {
   const el = event.target;

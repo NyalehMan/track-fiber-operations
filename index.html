@@ -38,13 +38,33 @@ input[type="search"],input[name="tag"]{min-width:0;padding:9px;border:1px solid 
 .operation-tabs button[aria-current=page]{background:var(--accent-soft);border-color:#efbbc3;color:var(--accent);font-weight:700}
 .alert-metrics strong,[data-alert-elapsed],[data-alert-remaining]{font-variant-numeric:tabular-nums}
 [data-alert-status][data-breached=true]{color:var(--red);font-weight:700}
-.snapshot-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(192px,100%),1fr));gap:8px}
+.snapshot-controls{display:flex;gap:7px;flex-wrap:wrap}
+.snapshot-map{position:relative}
 #alert-snapshot{display:block;width:100%;height:auto;aspect-ratio:760/490;background:#12242d;border-radius:8px}
+.snapshot-pins{position:absolute;inset:0;pointer-events:none}
+button.snapshot-pin{--pin-color:#ffce6d;position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center;pointer-events:auto;padding:0 3px;min-width:28px;height:28px;border:2px solid #12242d;border-radius:999px;background:var(--pin-color);color:#10242e;font-size:11px;font-weight:750}
+button.snapshot-pin[data-kind=fault]{--pin-color:#ff867b}
+button.snapshot-pin[data-kind=premise]{--pin-color:#8cebf2}
+button.snapshot-pin:hover,button.snapshot-pin:focus-visible,button.snapshot-pin[aria-pressed=true]{z-index:1;background:var(--pin-color);border-color:white;outline:2px solid #12242d;outline-offset:0;color:#10242e}
+.snapshot-pin[aria-pressed=true]{box-shadow:0 0 0 4px #ffffff70}
+#snapshot-selection{min-height:1.4em;font-weight:600}
 .snapshot-legend{display:flex;flex-wrap:wrap;gap:7px 15px;color:var(--muted);font-size:11px}
-.snapshot-legend span::before{content:"";display:inline-block;width:10px;height:4px;border-radius:2px;margin:0 5px 2px 0;background:#d84438}
+.snapshot-legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#d84438}
 .snapshot-legend span:nth-child(2)::before{background:#a86d00}
-.snapshot-legend span:nth-child(3)::before{width:7px;height:7px;background:#19818e}
-.snapshot-legend[data-marker-mode=hardware] span:nth-child(3)::before{background:#a86d00}
+.snapshot-legend span:nth-child(3)::before{background:#19818e}
+.impact-headings,.impact-group{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:12px}
+.impact-headings{font-size:12px;color:var(--muted);padding-inline:10px}
+.impact-groups{display:grid;gap:8px}
+.impact-group{padding:10px;background:#f8fafc;border:1px solid var(--stroke);border-radius:8px}
+.impact-group[data-highlighted=true]{border-color:#33959e;background:#edfafa}
+.impact-assets{display:flex;align-content:center;align-items:center;flex-wrap:wrap;gap:5px}
+details>.impact-assets{margin-top:9px}
+.impact-building{display:grid;align-content:center;justify-items:start;gap:4px;border-left:2px solid #6aadba;padding-left:10px}
+.impact-asset,button.impact-asset{--chip-background:#fff4dd;--chip-text:#503600;display:inline-flex;align-items:center;gap:5px;max-width:100%;text-align:left;border:1px solid #edcf90;border-radius:6px;padding:3px 6px;background:var(--chip-background);color:var(--chip-text);font-size:11px}
+.impact-asset[data-kind=fault]{--chip-background:#ffe9e5;--chip-text:#7f2c20;border-color:#ebb7ae}
+.impact-asset[data-kind=premise]{--chip-background:#e0f6f8;--chip-text:#0d4d57;border-color:#b4e1e6;font-weight:700}
+button.impact-asset:hover,button.impact-asset[aria-pressed=true]{background:var(--chip-background);color:var(--chip-text);border-color:currentColor;box-shadow:0 0 0 1px currentColor}
+.impact-marker{flex:none;font-weight:750}
 #map-connections summary{cursor:pointer;font-size:12px;font-weight:700}
 #map-connections .section{display:grid;gap:8px}
 #map-connections .section p{font-size:11px}
@@ -171,7 +191,7 @@ label{display:grid;gap:5px;font-size:12px;color:var(--muted)}label select,label 
       <button data-view="overview">Overview</button>
       <button data-view="planning">Planning</button>
       <button data-view="assets">Asset registry</button>
-      <button data-view="alerts">Alerts &amp; SLA</button>
+      <button data-view="alerts">Service Assurance</button>
     </nav>
     <div class="nav-footer">Brunei Darussalam<br>Local demonstration</div>
   </aside>
@@ -1021,7 +1041,7 @@ function paintAlertSnapshot(canvas, snapshot, view) {
   };
   for (const ring of snapshot.buildings) footprint(ring, "#263f49", "#4d6871", .7);
   for (const marker of view.markers) {
-    const focused = marker.id === view.selected;
+    const focused = marker.id === view.selected || view.related.has(marker.id);
     for (const ring of marker.footprints ?? []) {
       footprint(ring, focused ? "#235966" : "#204653", focused ? "#f8ffff" : "#68d8e4", focused ? 2.1 : 1.35);
     }
@@ -1044,6 +1064,13 @@ function paintAlertSnapshot(canvas, snapshot, view) {
       }
     }
   }
+  for (const row of snapshot.paths.filter(path => path.id === view.selected || view.related.has(path.id))) {
+    for (const part of row.parts) {
+      const path = part.map(screen);
+      stroke(ctx, path, "#0b1920", 8);
+      stroke(ctx, path, row.kind === "fault" ? "#ff9d91" : "#fff0c7", 5);
+    }
+  }
   for (const { xy, kind } of snapshot.points ?? []) {
     const [x, y] = screen(xy);
     ctx.beginPath();
@@ -1052,11 +1079,11 @@ function paintAlertSnapshot(canvas, snapshot, view) {
     ctx.fill();
   }
   const placed = [];
-  const pinOrder = [...view.options].sort((a, b) => Number(b.id === view.selected) - Number(a.id === view.selected));
-  for (const pin of pinOrder) {
+  const layout = [];
+  for (const pin of view.options) {
     const anchor = screen(pin.xy);
     const color = pin.kind === "fault" ? "#ff867b" : pin.kind === "premise" ? "#8cebf2" : "#ffce6d";
-    const radius = pin.label.length > 2 ? 15 : 12;
+    const radius = pin.label.length > 2 ? 16 : 14;
     const spot = snapshotPinPosition(anchor, placed, width, height, radius);
     placed.push({ xy: spot, radius });
     const picked = pin.id === view.selected;
@@ -1065,20 +1092,10 @@ function paintAlertSnapshot(canvas, snapshot, view) {
     ctx.arc(...anchor, 3, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.beginPath();
-    ctx.arc(...spot, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.lineWidth = picked ? 3 : 2;
-    ctx.strokeStyle = picked ? "#ffffff" : "#12242d";
-    ctx.stroke();
-    ctx.font = "700 11px Segoe UI, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#10242e";
-    ctx.fillText(pin.label, spot[0], spot[1] + .5);
+    layout.push({ pin, left: spot[0] / width * 100, top: spot[1] / height * 100 });
   }
   tag(ctx, "↑ N", 12, 19, 1);
+  return layout;
 }
 
 function snapshotPinPosition(anchor, placed, width, height, radius) {
@@ -1808,8 +1825,8 @@ function operationPages(page, ctx, escape) {
     + "</div></section>";
   const split = (main, side) => '<div class="operation-split"><div class="operation-stack">'
     + main + '</div><div class="operation-stack">' + side + "</div></div>";
-  const workspace = page === "alerts" ? heading("Alerts &amp; SLA", "Simulated monitoring · " + sourceName)
-    + '<nav class="operation-tabs" aria-label="Alerts and SLA sections">'
+  const workspace = page === "alerts" ? heading("Service Assurance", "Simulated monitoring · " + sourceName)
+    + '<nav class="operation-tabs" aria-label="Service Assurance sections">'
     + [["alarms", "Alerts"], ["connectivity", "Service paths"], ["maintenance", "Health &amp; maintenance"]]
       .map(([tab, label]) => '<button type="button" data-operation="tab-' + tab + '"'
         + (alertWorkspace.tab === tab ? ' aria-current="page"' : "") + '>' + label + '</button>').join("") + '</nav>' : "";
@@ -1876,28 +1893,47 @@ function operationPages(page, ctx, escape) {
         + (alert.acknowledgedAt == null ? button("ack-alert", "Acknowledge") : "")
         + button("restore-alert", "Mark restored", true) + '</div>' : "") + '</section>' : "";
     const location = snapshotView ? '<section class="operation-panel"><h2>Location snapshot</h2><p>'
-      + e(scope.snapshot.label) + '</p><div class="snapshot-controls"><label>Show markers<select id="snapshot-mode">'
-      + '<option value="buildings"' + (snapshotView.mode === "buildings" ? " selected" : "") + '>Affected buildings</option>'
-      + '<option value="hardware"' + (snapshotView.mode === "hardware" ? " selected" : "") + '>Affected hardware</option></select></label>'
-      + '<label>Highlight a marker<select id="snapshot-marker"><option value="">Choose a marker</option>'
-      + snapshotView.options.map(marker => '<option value="' + e(marker.id) + '"' + (marker.id === snapshotView.selected ? " selected" : "")
-        + '>' + e(marker.label + " · " + marker.name) + '</option>').join("")
-      + '</select></label></div><canvas id="alert-snapshot" width="1520" height="980" role="img" aria-label="'
-      + e("Outage location map for " + scope.assetName + ". Match map markers to the names in the marker selector.") + '"></canvas>'
-      + '<div class="snapshot-legend" data-marker-mode="' + snapshotView.mode + '"><span>F · Fault source</span><span>Isolated cable</span><span>'
-      + (snapshotView.mode === "buildings" ? "B · Affected building" : "H · Affected hardware") + '</span></div>'
+      + e(scope.snapshot.label) + '</p><div class="snapshot-controls" role="group" aria-label="Map marker type">'
+      + '<button type="button" data-snapshot-mode="buildings">Buildings</button>'
+      + '<button type="button" data-snapshot-mode="hardware">Hardware</button></div>'
+      + '<div class="snapshot-map"><canvas id="alert-snapshot" width="1520" height="980" role="img" aria-label="'
+      + e("Outage location map for " + scope.assetName) + '"></canvas>'
+      + '<div id="snapshot-pins" class="snapshot-pins" role="group" aria-label="Interactive outage markers"></div></div>'
+      + '<div class="snapshot-legend"><span>F · Fault source</span><span>H · Affected hardware</span><span>B · Affected building</span></div>'
+      + '<p id="snapshot-selection" role="status">Select a marker on the map to see its name and service impact.</p>'
       + button("map-alert", "Open location on map") + '</section>' : "";
-    const marker = id => snapshotView?.markers.some(row => row.id === id) ? snapshotView.labels.get(id) : "—";
-    const affected = scope ? '<section class="operation-panel"><h2>Affected hardware</h2><div class="tablewrap"><table class="operation-table">'
+    const marker = id => snapshotView?.byId.has(id) ? snapshotView.labels.get(id) : "—";
+    const taggedAsset = (row, kind) => {
+      const content = '<span class="impact-marker">' + e(marker(row.id)) + '</span><span>' + e(row.name) + '</span>';
+      const attrs = ' class="impact-asset" data-kind="' + kind + '"';
+      return snapshotView.byId.has(row.id)
+        ? '<button type="button"' + attrs + ' data-impact-asset="' + e(row.id) + '" aria-pressed="false">' + content + '</button>'
+        : '<span' + attrs + '>' + content + '</span>';
+    };
+    const hardwareById = new Map(scope?.hardware.map(asset => [asset.id, asset]));
+    const premisesById = new Map(scope?.premises.map(building => [building.id, building]));
+    const linkedIds = new Set(snapshotView?.connections.flatMap(link => link.hardwareIds));
+    const hardwareChips = ids => ids.map(id => hardwareById.get(id)).filter(Boolean)
+      .map(row => taggedAsset(row, row.id === scope.assetId ? "fault" : "hardware")).join("");
+    const unlinked = scope?.hardware.filter(asset => !linkedIds.has(asset.id)) ?? [];
+    const affected = snapshotView ? '<section class="operation-panel"><h2>Service impact</h2>'
+      + (scope.premises.length ? '<div class="impact-headings"><strong>Affected hardware on service path</strong><strong>Affected building</strong></div>'
+        + '<div class="impact-groups">' + snapshotView.connections.map(({ buildingId, hardwareIds }) => {
+          const building = premisesById.get(buildingId);
+          return '<div class="impact-group" data-impact-building="' + e(buildingId) + '"><div class="impact-assets">'
+            + (hardwareChips(hardwareIds) || '<small>Service path unavailable</small>')
+            + '</div><div class="impact-building">' + taggedAsset(building, "premise")
+            + (building.street ? '<small>' + e(building.street) + '</small>' : '') + '</div></div>';
+        }).join("") + '</div>' : '<p>No connected buildings lose service in this scenario.</p>')
+      + (unlinked.length ? '<details' + (scope.premises.length ? '' : ' open') + '><summary>Other affected hardware (' + unlinked.length
+        + ')</summary><div class="impact-assets">' + hardwareChips(unlinked.map(asset => asset.id)) + '</div></details>' : '')
+      + '<details><summary>Hardware status and downtime</summary><div class="tablewrap"><table class="operation-table">'
       + '<thead><tr><th>Marker</th><th>Asset</th><th>Impact</th><th>Downtime</th><th>Last installed</th></tr></thead><tbody>'
       + scope.hardware.map(asset => '<tr><td>' + e(marker(asset.id)) + '</td><td>' + e(asset.name) + '</td><td>'
         + e(asset.impact) + '</td><td' + (clock ? ' data-alert-elapsed' : "") + '>'
         + (clock ? formatDowntime(clock.elapsed) : "—") + '</td><td>'
         + e(ops.healthFor(asset.id).installedOn || "Unrecorded") + '</td></tr>').join("")
-      + '</tbody></table></div><h3>Affected premises</h3>'
-      + (scope.premises.length ? '<ul class="service-list">' + scope.premises.map(p => '<li><strong>'
-        + e(marker(p.id) + " · " + p.name) + '</strong>' + (p.street ? ' <small>' + e(p.street) + '</small>' : '') + '</li>').join("") + '</ul>'
-        : '<p>No connected premises lose service in this scenario.</p>') + '</section>' : "";
+      + '</tbody></table></div></details></section>' : "";
     const start = '<form class="operation-panel" id="alert-form"><h2>Simulate an outage</h2>'
       + (service.canSimulateDrafts ? '<label class="checkbox"><input id="include" type="checkbox"' + (service.includeProposals ? ' checked' : '') + '> Include saved proposals in simulation</label>' : '')
       + '<label>Fault source<select id="alert-asset" name="asset">' + assetOptions(trace.id)
@@ -2014,7 +2050,7 @@ let view = "map", registryQuery = "", registryType = "", traceAsset = "", attemp
 let serviceSelection = "", tracedCables = new Set();
 let assetNames, alertTab = "alarms", alertId = null, healthAsset = "", targetMinutes = 60, alertTimer;
 let snapshotMode = "buildings", snapshotSelection = "";
-let snapshotResize;
+let snapshotResize, redrawSnapshot;
 let pendingMapFit = null;
 let toastTimer, drawFrame, suppressMapClick = false;
 let flashAsset = null, flashTimers = [];
@@ -2857,6 +2893,23 @@ function snapshotMarkers(scope) {
   return [...hardware, ...buildings].filter(marker => marker.xy);
 }
 
+function affectedBuildingLinks(scope, cables) {
+  const affected = new Set(scope.hardware.map(asset => asset.id));
+  const cableById = new Map(cables.map(({ properties }) => [properties.LineID, properties]));
+  return scope.premises.map(({ id }) => {
+    const route = upstreamRoute(cables, raw.rootId, id, { includeDestinationDrop: true, includeProposals: true });
+    if (!route) return { buildingId: id, hardwareIds: [] };
+    let upstream = raw.rootId;
+    const path = [upstream];
+    for (const cableId of route.cableIds) {
+      const cable = cableById.get(cableId);
+      upstream = cable.FromID === upstream ? cable.ToID : cable.FromID;
+      path.push(cableId, upstream);
+    }
+    return { buildingId: id, hardwareIds: path.filter(asset => affected.has(asset)) };
+  });
+}
+
 function outageScope(id, cables, result, assets, records) {
   const origin = assets.find(asset => asset.id === id);
   if (!origin) return null;
@@ -2875,6 +2928,7 @@ function outageScope(id, cables, result, assets, records) {
     xy: point.xy, kind: point.id === id ? "fault" : point.home ? "premise" : "node",
   }));
   const paths = cables.map(({ properties: p, geometry }) => ({
+    id: p.LineID,
     kind: result.direct.has(p.LineID) ? "fault" : result.downstream.has(p.LineID) ? "isolated" : "normal",
     parts: lineParts(geometry).map(path => path.map(project.forward)),
   }));
@@ -2894,7 +2948,7 @@ function outageScope(id, cables, result, assets, records) {
   const buildings = localParts("buildings", geometry => polygonParts(geometry).map(polygon => polygon[0]));
   const label = [origin.street, raw.areaId === "menglait" ? "Menglait" : selectedArea()?.name].filter(Boolean).join(" · ") || datasetLabel;
   const scope = { assetId: id, assetName: origin.name, hardware, premises };
-  return { ...scope, snapshot: { label, extent, roads, buildings, points: plotPoints,
+  return { ...scope, connections: affectedBuildingLinks(scope, cables), snapshot: { label, extent, roads, buildings, points: plotPoints,
     paths: paths.filter(row => row.parts.some(near)), markers: snapshotMarkers(scope) } };
 }
 
@@ -2905,13 +2959,52 @@ function snapshotControls(scope) {
   const labels = new Map([[scope.assetId, "F"],
     ...hardware.map(({ id }, i) => [id, "H" + (i + 1)]),
     ...scope.premises.map(({ id }, i) => [id, "B" + (i + 1)])]);
-  const byId = new Map(markers.map(marker => [marker.id, marker]));
-  const rows = [{ id: scope.assetId, name: scope.assetName },
-    ...(snapshotMode === "buildings" ? scope.premises : hardware)];
-  const options = rows.filter(row => byId.has(row.id)).map(row => ({
-    ...byId.get(row.id), name: row.name, label: labels.get(row.id),
-  }));
-  return { mode: snapshotMode, markers, options, labels, selected: options.some(row => row.id === snapshotSelection) ? snapshotSelection : "" };
+  const names = new Map([...scope.hardware, ...scope.premises].map(row => [row.id, row.name]));
+  const byId = new Map(markers.map(marker => [marker.id, { ...marker, name: names.get(marker.id), label: labels.get(marker.id) }]));
+  const connections = scope.connections ?? affectedBuildingLinks(scope, [...baseLines, ...proposals]);
+  return { markers, byId, labels, connections };
+}
+
+function mountAlertSnapshot(scope, snapshotView) {
+  const canvas = select("#alert-snapshot");
+  const pins = select("#snapshot-pins");
+  const summary = select("#snapshot-selection");
+  if (!canvas || !pins || !summary) return;
+  redrawSnapshot = () => {
+    const selected = snapshotView.byId.get(snapshotSelection);
+    const buildingLinks = snapshotView.connections.filter(link =>
+      link.buildingId === selected?.id || link.hardwareIds.includes(selected?.id));
+    const related = new Set(buildingLinks.flatMap(link => selected?.kind === "premise" ? link.hardwareIds : [link.buildingId]));
+    const options = [...snapshotView.byId.values()].filter(marker =>
+      marker.kind === "fault" || (marker.kind === "premise") === (snapshotMode === "buildings"));
+    const layout = paintAlertSnapshot(canvas, scope.snapshot, {
+      markers: snapshotView.markers, options, selected: selected?.id, related,
+    });
+    if (!layout) return;
+    const focused = document.activeElement?.dataset?.snapshotPin;
+    pins.innerHTML = layout.map(({ pin, left, top }) => '<button type="button" class="snapshot-pin" data-snapshot-pin="'
+      + safe(pin.id) + '" data-kind="' + pin.kind + '" style="left:' + left + '%;top:' + top + '%" title="' + safe(pin.name)
+      + '" aria-label="' + safe(pin.label + " · " + pin.name) + '" aria-pressed="' + (pin.id === selected?.id) + '">'
+      + safe(pin.label) + '</button>').join("");
+    if (focused) select('[data-snapshot-pin="' + CSS.escape(focused) + '"]')?.focus({ preventScroll: true });
+    summary.textContent = selected ? selected.label + " · " + selected.name
+      + (selected.kind === "premise" ? " · " + related.size + " affected assets on its service path"
+        : " · " + related.size + (related.size === 1 ? " affected building" : " affected buildings"))
+      : "Select a marker on the map to see its name and service impact.";
+    for (const button of operationsPage.querySelectorAll("[data-snapshot-mode]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.snapshotMode === snapshotMode));
+    }
+    for (const item of operationsPage.querySelectorAll("[data-impact-building]")) {
+      const linked = related.has(item.dataset.impactBuilding) || selected?.id === item.dataset.impactBuilding;
+      item.dataset.highlighted = String(linked);
+    }
+    for (const button of operationsPage.querySelectorAll("[data-impact-asset]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.impactAsset === selected?.id));
+    }
+  };
+  redrawSnapshot();
+  snapshotResize = new ResizeObserver(redrawSnapshot);
+  snapshotResize.observe(canvas);
 }
 
 function refreshAlertClock(alert) {
@@ -2969,13 +3062,7 @@ function renderOperations() {
       canSimulateDrafts: proposals.length > 0, includeProposals },
   }, safe);
   if (alarms) {
-    const snapshotCanvas = select("#alert-snapshot");
-    if (snapshotCanvas && snapshotView) {
-      const paint = () => paintAlertSnapshot(snapshotCanvas, scope.snapshot, snapshotView);
-      paint();
-      snapshotResize = new ResizeObserver(paint);
-      snapshotResize.observe(snapshotCanvas);
-    }
+    if (snapshotView) mountAlertSnapshot(scope, snapshotView);
     refreshAlertClock(alert);
   }
 }
@@ -3046,6 +3133,7 @@ function render(focus) {
   clearTimeout(alertTimer);
   snapshotResize?.disconnect?.();
   snapshotResize = null;
+  redrawSnapshot = null;
   document.body.dataset.view = view;
   document.body.dataset.mapPane = view === "map" ? mapPane ?? "" : "";
   for (const button of document.querySelectorAll("[data-view]")) {
@@ -3379,6 +3467,20 @@ function startAssetFlash(asset) {
 }
 
 operationsPage.addEventListener("click", event => {
+  const mapControl = event.target.closest("[data-snapshot-mode], [data-snapshot-pin], [data-impact-asset]");
+  if (mapControl) {
+    const { snapshotMode: mode, snapshotPin, impactAsset, kind } = mapControl.dataset;
+    if (mode) {
+      if (mode !== snapshotMode) snapshotSelection = "";
+      snapshotMode = mode;
+    } else {
+      const id = snapshotPin || impactAsset;
+      snapshotSelection = snapshotSelection === id ? "" : id;
+      if (kind !== "fault") snapshotMode = kind === "premise" ? "buildings" : "hardware";
+    }
+    redrawSnapshot?.();
+    return;
+  }
   const button = event.target.closest("[data-operation]");
   if (!button) return;
   const action = button.dataset.operation;
@@ -3474,15 +3576,6 @@ operationsPage.addEventListener("change", ({ target: field }) => {
   if (field.id === "health-asset") {
     healthAsset = field.value;
     render("#health-asset");
-  }
-  if (field.id === "snapshot-mode") {
-    snapshotMode = field.value;
-    snapshotSelection = "";
-    render("#snapshot-mode");
-  }
-  if (field.id === "snapshot-marker") {
-    snapshotSelection = field.value;
-    render("#snapshot-marker");
   }
   if (field.id === "include") {
     includeProposals = field.checked;

@@ -12,9 +12,9 @@ This folder contains the static UNN demonstration for GitHub Pages. `index.html`
 
 ## Demo data
 
-The app packages mapped street and building context, an indicative published FTTH footprint, and modeled fiber assets and service IDs. Local browser drafts, tags, imports, and activity are stored at the address used to open the app. Only the static demo files belong in the published folder. Keep operator imports and exports with real service references outside the site.
+The app packages mapped street and building context, an indicative published FTTH footprint, and modeled fiber assets and service IDs. Local browser drafts, tags, imports, and activity are stored at the address used to open the app. Existing map connection and import tools are under **Layers → Map connections**. Keep real service references outside the published repository.
 
-Open **Alerts & SLA** to simulate an asset outage against the modeled topology, see the affected hardware and premises, and compare elapsed downtime with a configurable restoration target. The app saves outage history, location snapshots, and maintenance records in the browser. Service dependencies and health monitoring are simulated. Installation, inspection, and maintenance dates can be entered per asset in **Health & maintenance**.
+Open **Alerts & SLA** to simulate an asset outage against the modeled topology and compare elapsed downtime with a configurable restoration target. Under **Location snapshot**, switch between affected buildings and affected hardware and highlight a named marker. The app saves outage history, location snapshots, and maintenance records in the browser. Service dependencies and health monitoring are simulated. Installation, inspection, and maintenance dates can be entered per asset in **Health & maintenance**.
 
 The street and building-name data derived from OpenStreetMap in the embedded `region-data` and `menglait-data` blocks are available under the Open Database License. Building-height estimates and the modeled network are documented in the project source. [OpenStreetMap contributors and licence](https://www.openstreetmap.org/copyright) · [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/) · [UNN published indicative coverage](https://unn.com.bn/fibre-network)
 

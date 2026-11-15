@@ -1,6 +1,6 @@
 # TRACK Solutions · Fiber Operations
 
-This folder contains the static UNN demonstration for GitHub Pages. `index.html` contains the application, branding, map context, and modeled demo network. No repository build or server is needed.
+This folder contains the static Fiber Operations site for GitHub Pages. `index.html` includes the application, branding, map context, and modeled network. No repository build or server is needed.
 
 ## Publish on GitHub Pages
 
@@ -10,11 +10,11 @@ This folder contains the static UNN demonstration for GitHub Pages. `index.html`
 
 [GitHub Pages publishing setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
-## Demo data
+## Network data
 
 The app packages mapped street and building context, an indicative published FTTH footprint, and modeled fiber assets and service IDs. Local browser drafts, tags, imports, and activity are stored at the address used to open the app. Existing map connection and import tools are under **Layers → Map connections**. Keep real service references outside the published repository.
 
-Open **Service Assurance** to simulate an asset outage against the modeled topology and compare elapsed downtime with a configurable restoration target. Select a marker on the **Location snapshot** or an item under **Service impact** to highlight the corresponding service dependencies. The app saves outage history, location snapshots, and maintenance records in the browser. Service dependencies and health monitoring are simulated. Installation, inspection, and maintenance dates can be entered per asset in **Health & maintenance**.
+Open **Service Assurance** to simulate an asset outage against the modeled topology and compare elapsed downtime with a configurable restoration target. Select a marker on the **Location snapshot** or an item under **Service impact** to highlight its service dependencies. The bundled networks include illustrative maintenance histories. Edits in **Health & maintenance**, outage history, and location snapshots are saved in the browser.
 
 The street and building-name data derived from OpenStreetMap in the embedded `region-data` and `menglait-data` blocks are available under the Open Database License. Building-height estimates and the modeled network are documented in the project source. [OpenStreetMap contributors and licence](https://www.openstreetmap.org/copyright) · [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/) · [UNN published indicative coverage](https://unn.com.bn/fibre-network)
 
